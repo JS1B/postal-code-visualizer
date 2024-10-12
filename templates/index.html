@@ -5,11 +5,14 @@
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <title>Postal Codes Map</title>
     <link rel='stylesheet' href='/static/styles.css'>
+    <script src='/static/script.js'></script>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
-
+    <link rel="icon" href="/static/assets/favicon.ico" type="image/x-icon">
 </head>
 <body>
     <h1>Postal Codes</h1>
+    <img style="display:none;" id="mapImg" src="/static/assets/large-detailed-physical-map-of-poland.jpg" alt="Map">
+    <canvas style="display: none;" id="mapCanvas" width="850" height="760"></canvas>
     <table id="postcodes">
         <thead>
             <tr>

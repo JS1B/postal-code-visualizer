@@ -27,3 +27,7 @@ th {
 td {
   text-align: left;
 }
+
+canvas {
+  border: 1px solid black;
+}
