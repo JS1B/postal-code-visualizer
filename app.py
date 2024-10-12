@@ -6,9 +6,6 @@ from datetime import datetime
 
 app = Flask(__name__)
 url = "https://www.geonames.org/postalcode-search.html?country=PL&q="
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-}
 
 
 def fetch_table(force_web_fetch=False):
@@ -23,28 +20,24 @@ def fetch_table(force_web_fetch=False):
         return None
 
     # Save the table to cache
-    table = parse_table(table)
     with open(cache_file_name, "w") as f:
         now = datetime.now().isoformat()
-        json.dump({"time": now, "data": table}, f)
+        json.dump({"time": now, "data": str(table)}, f)
     return table
 
 
 def fetch_internet_table():
     print("Fetching data from the internet")
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Error fetching data: {e}")
         return None
 
-    # with open("temp.html") as f:
-    #     c = f.read()
     soup = BeautifulSoup(response.content, "lxml")
     restable = soup.find("table", class_="restable")
 
-    # restable = BeautifulSoup(c, "html.parser").find("table")
     if not restable:
         print("No data found")
         return None
@@ -69,7 +62,10 @@ def fetch_valid_cached_table(file_name):
                 return None
 
             print("Data is valid")
-            return json_data.get("data", None)
+            if data := json_data.get("data"):
+                print("Converting to tag")
+                data = BeautifulSoup(data, "lxml")
+            return data
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error getting the file: {e}")
         return None
@@ -95,7 +91,8 @@ def parse_table(restable):
 
 @app.route("/")
 def index():
-    table = fetch_table(force_web_fetch=True)
+    table = fetch_table()
+    table = parse_table(table)
     if not table:
         return "Error fetching data", 500
 
