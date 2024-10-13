@@ -3,47 +3,73 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import json
 
-url = "https://www.geonames.org/postalcode-search.html?country=PL&q="
 
-
-def fetch_table(force_web_fetch=False):
+def fetch_list(force_web_fetch=False):
     cache_file_name = "cache/data.json"
     if not force_web_fetch:
-        table = fetch_valid_cached_table(cache_file_name)
-        if table:
-            return table
+        places = fetch_valid_cached_table(cache_file_name)
+        if places:
+            return places
 
-    table = fetch_internet_table()
-    if not table:
+    places = retrieve_internet_list()
+    if not places:
         return None
 
-    # Save the table to cache
+    for i, place in enumerate(places[1:]):
+        place[0] = i + 1
+
+    # Save the places to cache
     import os
 
     os.makedirs("cache", exist_ok=True)
     with open(cache_file_name, "w") as f:
         now = datetime.now().isoformat()
-        json.dump({"time": now, "data": str(table)}, f)
-    return table
+        json.dump({"time": now, "data": places}, f)
+
+    return places
 
 
-def fetch_internet_table():
-    print("Fetching data from the internet")
+def fetch_internet_table(code):
+    url = "https://www.geonames.org/postalcode-search.html?country=PL&q="
+
+    print(f"    fetching code {code}", end="")
     try:
-        response = requests.get(url)
+        response = requests.get(url + code)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"Error fetching data: {e}")
+        print(f" - failed ({e})")
         return None
 
     soup = BeautifulSoup(response.content, "lxml")
     restable = soup.find("table", class_="restable")
 
     if not restable:
-        print("No data found")
-        return None
-
+        print(" - empty")
+    else:
+        print(" - success")
     return restable
+
+
+def retrieve_internet_list():
+    post_codes = get_possible_postal_codes()
+    data = [parse_table_header(fetch_internet_table("42-069"))]
+
+    print("Fetching data from the internet")
+    for code in post_codes[:100]:
+        d = parse_table(fetch_internet_table(code))
+        if not d:
+            continue
+        data.extend(d)
+
+    return data
+
+
+def get_possible_postal_codes():
+    L = [f"{i:02}" for i in range(100)]
+    R = [f"{i:03}" for i in range(1, 1000)]
+    codes = [f"{l}-{r}" for l in L for r in R]
+
+    return codes
 
 
 def fetch_valid_cached_table(file_name):
@@ -63,10 +89,7 @@ def fetch_valid_cached_table(file_name):
                 return None
 
             print("Data is valid")
-            if data := json_data.get("data"):
-                print("Converting to tag")
-                data = BeautifulSoup(data, "lxml")
-            return data
+            return json_data.get("data")
     except json.JSONDecodeError as e:
         print(f"Error getting the file: {e}")
         return None
@@ -75,14 +98,24 @@ def fetch_valid_cached_table(file_name):
         return None
 
 
-def parse_table(restable):
-    postal_codes = []
+def parse_table_header(restable):
+    if not restable:
+        return None
+
     rows = restable.find_all("tr")
 
     header_row = [cell.text for cell in rows[0].find_all("th", recursive=False)]
     header_row[0] = "#"
     header_row.append("Coordinates")
-    postal_codes.append(header_row)
+    return header_row
+
+
+def parse_table(restable):
+    if not restable:
+        return None
+
+    postal_codes = []
+    rows = restable.find_all("tr")
 
     for i in range(1, len(rows) - 1, 2):
         cells = rows[i].find_all("td", recursive=False)

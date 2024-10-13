@@ -41,7 +41,7 @@ function fromCoordToPx(canvas, lat, lon, referencePoints) {
 // Function to draw a circle at given coordinates
 function drawCircle(canvas, ctx, lat, lon, referencePoints) {
     const points = fromCoordToPx(canvas, lat, lon, referencePoints);
-    const r = 3;
+    const r = 1.5;
 
     // Draw circle
     ctx.beginPath();
@@ -73,7 +73,7 @@ function drawMapBackground(canvas, ctx, referencePoints) {
             const lat = parseFloat(coordinates[0]);
             const lon = parseFloat(coordinates[1]);
             drawCircle(canvas, ctx, lat, lon, referencePoints);
-            drawText(canvas, ctx, lat, lon, referencePoints, data[i][1]);
+            // drawText(canvas, ctx, lat, lon, referencePoints, data[i][1]);
         }
         canvas.style.display = 'block';
     };
