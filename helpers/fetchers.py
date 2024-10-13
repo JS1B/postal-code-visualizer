@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
+import concurrent.futures
 
 
 def fetch_list(force_web_fetch=False):
@@ -51,15 +52,21 @@ def fetch_internet_table(code):
 
 
 def retrieve_internet_list():
+    def handle_one_code(code):
+        data = parse_table(fetch_internet_table(code))
+        if not data:
+            return []
+        return data
+
     post_codes = get_possible_postal_codes()
     data = [parse_table_header(fetch_internet_table("42-069"))]
 
     print("Fetching data from the internet")
-    for code in post_codes[:100]:
-        d = parse_table(fetch_internet_table(code))
-        if not d:
-            continue
-        data.extend(d)
+    with concurrent.futures.ThreadPoolExecutor(50) as executor:
+        results = executor.map(handle_one_code, post_codes[:200])
+
+    for result in results:
+        data.extend(result)
 
     return data
 
