@@ -14,7 +14,10 @@ def get_duplicates(data):
 def group_by_place(data):
     places = {}
     for row in data[1:]:
-        place = (row[2], row[5], row[6], row[7])
+        place = (row[1], row[4], row[5], row[6])
+        if any(value is None or value == "" for value in place):
+            print(f"Detected faulty {place}")
+
         if place not in places:
             places[place] = 0
 
@@ -23,27 +26,32 @@ def group_by_place(data):
     return places
 
 
+def get_n_most_common(data, n):
+    gr = group_by_place(data)
+    gr = sorted(gr.items(), key=lambda x: x[1], reverse=True)
+    return gr[:n]
+
+
 if __name__ == "__main__":
 
-    def get_raw_data(data):
-        return [row[2:] for row in data]
+    import db_handlers as db_handlers
 
-    import sqlite3 as sq3
+    cache_file_name = "cache/data.db"
 
-    cache_file_name = "cache/solution.db"
+    data = db_handlers.fetch_all()
 
-    with sq3.connect(cache_file_name) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM postal_codes")
-        data = c.fetchall()
+    gr = group_by_place(data)
 
-    with sq3.connect("cache/data.db") as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM postal_codes")
-        data2 = c.fetchall()
+    gr = sorted(gr.items(), key=lambda x: x[1], reverse=True)
+    count = sum([x[1] for x in gr])
 
-    missing = set(get_raw_data(data)) - set(get_raw_data(data2))
-    print(f"Found {len(missing)} missing rows")
-    print(missing)
+    print(count)
+    # This shows there is something wrong with the data
+    # These counts as duplicates (there is more, too):
+    # 40159  47       Krynica-Zdrój  33-338  Poland   Lesser Poland  Powiat nowosądecki  Krynica-Zdrój  49.4/20.953
+    # 42777  23       Krynica-Zdrój  33-381  Poland   Lesser Poland  Powiat nowosądecki  Krynica-Zdrój  49.4/20.953
+    # This has empty admin2 and admin3
+    # 47972  30       Jeziora  88-420  Poland   Kujawsko-Pomorskie                  52.654/17.76
 
-    print(get_duplicates(data))
+    print("Top 2 places:")
+    print(get_n_most_common(data, 2))
