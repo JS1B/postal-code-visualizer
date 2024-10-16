@@ -17,21 +17,20 @@ def fetch_list(force_web_refetch=False):
     simplified_code = 0
     if not force_web_refetch:
         last_code = db_handlers.fetch_last_updated()
+        if last_code == "02-999":
+            print("Database is up to date")
+            return db_handlers.fetch_all()
+
         simplified_code = last_code.split("-")[1]
-        try:
-            simplified_code = int(simplified_code)
-        except ValueError:
-            print("Invalid simplified code, refetching")
-            simplified_code = 0
+        simplified_code = int(simplified_code)
         db_handlers.delete_entry_by_simplified_code(simplified_code)
 
     places = retrieve_internet_list(simplified_code_starting_from=simplified_code)
     if not places:
         return None
 
-    table_len = len(places)
-    places = analyzers.remove_duplicates_embedded_lists(places)
-    print(f"There are {table_len - len(places)} duplicates in the db")
+    duplicates = analyzers.get_duplicates(places)
+    print(f"There are {len(duplicates)} duplicates in the db")
 
     return places
 
@@ -88,7 +87,7 @@ def retrieve_internet_list(simplified_code_starting_from):
     time_start = datetime.now()
 
     # Split into n subsets, save each time
-    subset_number = 20
+    subset_number = 12
     for i, post_codes in enumerate(array_split(post_codes, subset_number)):
         print(f"  Fetching subset {i + 1}/{subset_number}")
         data = []
@@ -123,16 +122,16 @@ def get_extended_postal_codes(code_R):
     return codes
 
 
-def parse_table_header(restable):
-    if not restable:
-        return None
+# def parse_table_header(restable):
+#     if not restable:
+#         return None
 
-    rows = restable.find_all("tr")
+#     rows = restable.find_all("tr")
 
-    header_row = [cell.text for cell in rows[0].find_all("th", recursive=False)]
-    header_row[0] = "#"
-    header_row.append("Coordinates")
-    return header_row
+#     header_row = [cell.text for cell in rows[0].find_all("th", recursive=False)]
+#     header_row[0] = "#"
+#     header_row.append("Coordinates")
+#     return header_row
 
 
 def parse_table(restable):

@@ -2,7 +2,7 @@ def get_duplicates(data):
     seen = set()
     duplicates = []
     for row in data:
-        considered = tuple(row[2:8])
+        considered = tuple(row[1:8])
         if considered in seen:
             duplicates.append(row)
         else:
@@ -14,7 +14,7 @@ def get_duplicates(data):
 def group_by_place(data):
     places = {}
     for row in data[1:]:
-        place = (row[1], row[4], row[5], row[6])
+        place = (row[2], row[5], row[6], row[7])
         if place not in places:
             places[place] = 0
 
