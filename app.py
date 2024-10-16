@@ -8,12 +8,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    places = fetchers.fetch_list(force_web_fetch=False)
-
-    # gr = analyzers.group_by_place(places)
-    # gr = sorted(gr.items(), key=lambda x: x[1], reverse=True)
-    # gr = gr[:5]
-    # print(gr)
+    places = fetchers.fetch_list(force_web_refetch=False)
 
     if not places:
         return "Error fetching data", 500

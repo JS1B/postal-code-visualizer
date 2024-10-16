@@ -1,31 +1,37 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import json
+from numpy import array_split
 import concurrent.futures
+import helpers.analyzers as analyzers
+import helpers.db_handlers as db_handlers
+import os
 
 
-def fetch_list(force_web_fetch=False):
-    cache_file_name = "cache/data.json"
-    if not force_web_fetch:
-        places = fetch_valid_cached_table(cache_file_name)
-        if places:
-            return places
+def fetch_list(force_web_refetch=False):
+    # Prepare caching
+    os.makedirs("cache", exist_ok=True)
+    if not db_handlers.is_db_valid() or force_web_refetch:
+        db_handlers.restart_db()
 
-    places = retrieve_internet_list()
+    simplified_code = 0
+    if not force_web_refetch:
+        last_code = db_handlers.fetch_last_updated()
+        simplified_code = last_code.split("-")[1]
+        try:
+            simplified_code = int(simplified_code)
+        except ValueError:
+            print("Invalid simplified code, refetching")
+            simplified_code = 0
+        db_handlers.delete_entry_by_simplified_code(simplified_code)
+
+    places = retrieve_internet_list(simplified_code_starting_from=simplified_code)
     if not places:
         return None
 
-    for i, place in enumerate(places[1:]):
-        place[0] = i + 1
-
-    # Save the places to cache
-    import os
-
-    os.makedirs("cache", exist_ok=True)
-    with open(cache_file_name, "w") as f:
-        now = datetime.now().isoformat()
-        json.dump({"time": now, "data": places}, f)
+    table_len = len(places)
+    places = analyzers.remove_duplicates_embedded_lists(places)
+    print(f"There are {table_len - len(places)} duplicates in the db")
 
     return places
 
@@ -33,7 +39,7 @@ def fetch_list(force_web_fetch=False):
 def fetch_internet_table(code):
     url = "https://www.geonames.org/postalcode-search.html?country=PL&q="
 
-    print(f"    fetching code {code}", end="")
+    print(f"    fetching code {code}", end="\n")
     try:
         response = requests.get(url + code)
         response.raise_for_status()
@@ -44,65 +50,77 @@ def fetch_internet_table(code):
     soup = BeautifulSoup(response.content, "lxml")
     restable = soup.find("table", class_="restable")
 
-    if not restable:
-        print(" - empty")
-    else:
-        print(" - success")
+    # Does not work well with thread pool
+    # if not restable:
+    #     print(" - empty")
+    # else:
+    # print(" - success")
     return restable
 
 
-def retrieve_internet_list():
+def retrieve_internet_list(simplified_code_starting_from):
     def handle_one_code(code):
         data = parse_table(fetch_internet_table(code))
+
         if not data:
             return []
-        return data
 
-    post_codes = get_possible_postal_codes()
-    data = [parse_table_header(fetch_internet_table("42-069"))]
+        if len(data) < 200:
+            return data
+
+        print(
+            "    code",
+            code,
+            "has 200 entries (saturated) - discarding and splitting requests",
+        )
+        # If reached max, throw out, redo with the full code XX-XXX
+        with concurrent.futures.ThreadPoolExecutor(100) as sub_executor:
+            data = sub_executor.map(handle_one_code, get_extended_postal_codes(code))
+
+        sub_data = []
+        for d in data:
+            sub_data.extend(d)
+        return sub_data
+
+    post_codes = get_simplified_postal_codes(simplified_code_starting_from)
 
     print("Fetching data from the internet")
-    with concurrent.futures.ThreadPoolExecutor(50) as executor:
-        results = executor.map(handle_one_code, post_codes[:200])
+    time_start = datetime.now()
 
-    for result in results:
-        data.extend(result)
+    # Split into n subsets, save each time
+    subset_number = 20
+    for i, post_codes in enumerate(array_split(post_codes, subset_number)):
+        print(f"  Fetching subset {i + 1}/{subset_number}")
+        data = []
+        with concurrent.futures.ThreadPoolExecutor(60) as executor:
+            results = executor.map(handle_one_code, post_codes)
 
-    return data
+        for result in results:
+            data.extend(result)
+
+        print(f"  Subset {i + 1}/{subset_number} fetched, saving")
+        db_handlers.add_to_db(data)
+
+    print(f"Fetching took {datetime.now() - time_start}")
+    return db_handlers.fetch_all()
 
 
-def get_possible_postal_codes():
-    L = [f"{i:02}" for i in range(100)]
-    R = [f"{i:03}" for i in range(1, 1000)]
-    codes = [f"{l}-{r}" for l in L for r in R]
+def get_simplified_postal_codes(starting_from=0):
+    # L = [f"{i:02}" for i in range(100)]
+    # R = [f"{i:03}" for i in range(1, 1000)]
+    # codes = [f"{l}-{r}" for l in L for r in R]
+    codes = [f"{i:03}" for i in range(starting_from, 1000)]
 
     return codes
 
 
-def fetch_valid_cached_table(file_name):
-    print("Fetching cached data")
-    try:
-        # Check if the data is cached
-        with open(file_name, "r") as f:
-            json_data = json.load(f)
-            json_data_time = json_data.get("time")
-            if not json_data_time:
-                print("No time found in cache")
-                return None
+def get_extended_postal_codes(code_R):
+    L = [f"{i:02}" for i in range(0, 100)]
+    codes = [
+        f"{l}{code_R}" for l in L
+    ]  # Do not add the dash here, it fucks up their db querying
 
-            json_data_time = datetime.fromisoformat(json_data_time)
-            if (datetime.now() - json_data_time).days > 1:
-                print("Data is too old")
-                return None
-
-            print("Data is valid")
-            return json_data.get("data")
-    except json.JSONDecodeError as e:
-        print(f"Error getting the file: {e}")
-        return None
-    except FileNotFoundError:
-        print("No cache found")
-        return None
+    return codes
 
 
 def parse_table_header(restable):
