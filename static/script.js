@@ -42,7 +42,7 @@ function fromCoordToPx(canvas, lat, lon, referencePoints) {
 // Function to draw a circle at given coordinates
 function drawCircle(canvas, ctx, lat, lon, referencePoints, color) {
     const points = fromCoordToPx(canvas, lat, lon, referencePoints);
-    const r = 1;
+    const r = .6;
 
     // Draw circle
     ctx.beginPath();
@@ -91,7 +91,7 @@ async function drawMap() {
     const referencePoints = await fetchMapMetaData();
     const data = await getData();
     const dataPoints = data.all;
-    const top2Points = data.top2.flatMap((place) => {
+    const top2Points = data.top2.map((place) => {
         const placeName = place[0][0];
         const admin1 = place[0][1];
         const admin2 = place[0][2];
@@ -106,20 +106,43 @@ async function drawMap() {
     });
     drawMapBackground(canvas, ctx);
     drawMapCircles(canvas, ctx, dataPoints, referencePoints, 'red');
-    drawMapCircles(canvas, ctx, top2Points, referencePoints, 'white');
+    drawMapCircles(canvas, ctx, top2Points[0], referencePoints, 'lightblue');
+    drawMapCircles(canvas, ctx, top2Points[1], referencePoints, 'blue');
 
     // BS
-    const boundingBox = getBoundingBox(top2Points);
-    drawBoundingBox(ctx, boundingBox);
-    const sectors = divideIntoSectors(boundingBox);
+    const boundingBox = [getBoundingBox(canvas, referencePoints, top2Points[0]), getBoundingBox(canvas, referencePoints, top2Points[1])];
+    drawBoundingBox(ctx, boundingBox[0]);
+    drawBoundingBox(ctx, boundingBox[1]);
+    const sectors = [divideIntoSectors(boundingBox[0]), divideIntoSectors(boundingBox[1])];
     
     // Draw density map and count postal codes in each sector
-    const sectorCounts = countPostalCodesInSectors(top2Points, sectors);
-    drawDensityMap(canvas, ctx, sectors, sectorCounts);
+    const sectorCounts = [countPostalCodesInSectors(canvas, top2Points[0], sectors[0], referencePoints), countPostalCodesInSectors(canvas, top2Points[1], sectors[1], referencePoints)];
+    drawDensityMap(canvas, ctx, sectors[0], sectorCounts[0]);
+    drawDensityMap(canvas, ctx, sectors[1], sectorCounts[1]);
 }
 
-function getBoundingBox(dataPoints) {
-    return {}
+function getBoundingBox(canvas, referencePoints, dataPoints) {
+    let minLon = Number.MAX_VALUE;
+    let minLat = Number.MAX_VALUE;
+    let maxLon = Number.MIN_VALUE;
+    let maxLat = Number.MIN_VALUE;
+    for (const dataPoint of dataPoints) {
+        const coordinates = dataPoint[7].split('/');
+        const lat = parseFloat(coordinates[0]);
+        const lon = parseFloat(coordinates[1]);
+        minLon = Math.min(minLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLon = Math.max(maxLon, lon);
+        maxLat = Math.max(maxLat, lat);
+    }
+    const lower_position = fromCoordToPx(canvas, maxLat, minLon, referencePoints);
+    const upper_position = fromCoordToPx(canvas, minLat, maxLon, referencePoints);
+    return {
+        x: lower_position.x,
+        y: lower_position.y,
+        width: upper_position.x - lower_position.x,
+        height: upper_position.y - lower_position.y
+    };
 }
 
 function drawBoundingBox(ctx, boundingBox) {
@@ -145,12 +168,38 @@ function divideIntoSectors(boundingBox) {
     return sectors;
 }
 
-function countPostalCodesInSectors(dataPoints, sectors) {
+function countPostalCodesInSectors(canvas, dataPoints, sectors, referencePoints) {
+    const sectorCounts = [];
+    for (let i = 0; i < sectors.length; i++) {
+        sectorCounts.push(0);
+    }
+    for (const dataPoint of dataPoints) {
+        const coordinates = dataPoint[7].split('/');
+        const lat = parseFloat(coordinates[0]);
+        const lon = parseFloat(coordinates[1]);
+        const position_on_map = fromCoordToPx(canvas, lat, lon, referencePoints);
 
+        for (let i = 0; i < sectors.length; i++) {
+            // console.log(position_on_map, sectors[i]);
+            if (position_on_map.x >= sectors[i].x && position_on_map.x < sectors[i].x + sectors[i].width &&
+                position_on_map.y >= sectors[i].y && position_on_map.y < sectors[i].y + sectors[i].height) {
+                sectorCounts[i]++;
+                break;
+            }
+        }
+    }
+    return sectorCounts;
 }
 
 function drawDensityMap(canvas, ctx, sectors, sectorCounts) {
-
+    const maxCount = sectorCounts.reduce((partialSum, a) => partialSum + a, 0); // Or use Math.max(...sectorCounts)
+    for (let i = 0; i < sectors.length; i++) {
+        const sector = sectors[i];
+        const count = sectorCounts[i];
+        const color = `rgba(0, 255, 0, ${count / maxCount})`;
+        ctx.fillStyle = color;
+        ctx.fillRect(sector.x, sector.y, sector.width, sector.height);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', drawMap);
