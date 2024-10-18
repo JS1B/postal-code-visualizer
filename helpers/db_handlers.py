@@ -3,6 +3,11 @@ import sqlite3 as sq3
 cache_file_name = "cache/data.db"
 
 
+def create_db_file():
+    with open(cache_file_name, "w") as f:
+        pass
+
+
 def restart_db():
     with sq3.connect(cache_file_name) as conn:
         c = conn.cursor()

@@ -12,6 +12,7 @@ def fetch_list(force_web_refetch=False):
     # Prepare caching
     os.makedirs("cache", exist_ok=True)
     if not db_handlers.is_db_valid() or force_web_refetch:
+        db_handlers.create_db_file()
         db_handlers.restart_db()
 
     simplified_code = 0

@@ -77,7 +77,6 @@ function drawMapCircles(canvas, ctx, dataPoints, referencePoints, color) {
         const lat = parseFloat(coordinates[0]);
         const lon = parseFloat(coordinates[1]);
         drawCircle(canvas, ctx, lat, lon, referencePoints, color);
-        // drawText(canvas, ctx, lat, lon, referencePoints, dataPoint[1], color);
     }
 }
 
@@ -153,10 +152,10 @@ function drawBoundingBox(ctx, boundingBox) {
 
 function divideIntoSectors(boundingBox) {
     const sectors = [];
-    const sectorWidth = boundingBox.width / 3;
-    const sectorHeight = boundingBox.height / 3;
-    for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
+    const sectorWidth = boundingBox.width / 4;
+    const sectorHeight = boundingBox.height / 4;
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
             sectors.push({
                 x: boundingBox.x + i * sectorWidth,
                 y: boundingBox.y + j * sectorHeight,
@@ -196,7 +195,7 @@ function drawDensityMap(canvas, ctx, sectors, sectorCounts) {
     for (let i = 0; i < sectors.length; i++) {
         const sector = sectors[i];
         const count = sectorCounts[i];
-        const color = `rgba(0, 255, 0, ${count / maxCount})`;
+        const color = `rgba(0, 255, 0, ${4*count / maxCount})`;
         ctx.fillStyle = color;
         ctx.fillRect(sector.x, sector.y, sector.width, sector.height);
     }
