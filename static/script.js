@@ -118,6 +118,24 @@ async function drawMap() {
     const sectorCounts = [countPostalCodesInSectors(canvas, top2Points[0], sectors[0], referencePoints), countPostalCodesInSectors(canvas, top2Points[1], sectors[1], referencePoints)];
     drawDensityMap(canvas, ctx, sectors[0], sectorCounts[0]);
     drawDensityMap(canvas, ctx, sectors[1], sectorCounts[1]);
+
+    // List sectors with the number of postal codes
+    const table = document.getElementById('postcodes');
+    for (let i = 0; i < 2; i++) {
+        const tbody = table.getElementsByTagName('tbody');
+        for (let j = 0; j < sectorCounts[i].length; j++) {
+            const row = tbody[0].insertRow();
+            const place = row.insertCell(0);
+            const sector_id = row.insertCell(1); 
+            const postal_code = row.insertCell(2);
+            const total_count = row.insertCell(3);
+
+            place.innerHTML = sectorCounts[i][j].place;
+            sector_id.innerHTML = `${j + 1}`;
+            postal_code.innerHTML = sectorCounts[i][j].codes.join(', ');
+            total_count.innerHTML = sectorCounts[i][j].count;
+        }
+    }
 }
 
 function getBoundingBox(canvas, referencePoints, dataPoints) {
@@ -170,7 +188,7 @@ function divideIntoSectors(boundingBox) {
 function countPostalCodesInSectors(canvas, dataPoints, sectors, referencePoints) {
     const sectorCounts = [];
     for (let i = 0; i < sectors.length; i++) {
-        sectorCounts.push(0);
+        sectorCounts.push({count: 0, place: '', codes: []});
     }
     for (const dataPoint of dataPoints) {
         const coordinates = dataPoint[7].split('/');
@@ -179,10 +197,11 @@ function countPostalCodesInSectors(canvas, dataPoints, sectors, referencePoints)
         const position_on_map = fromCoordToPx(canvas, lat, lon, referencePoints);
 
         for (let i = 0; i < sectors.length; i++) {
-            // console.log(position_on_map, sectors[i]);
+            sectorCounts[i].place = dataPoint[1];
             if (position_on_map.x >= sectors[i].x && position_on_map.x < sectors[i].x + sectors[i].width &&
                 position_on_map.y >= sectors[i].y && position_on_map.y < sectors[i].y + sectors[i].height) {
-                sectorCounts[i]++;
+                sectorCounts[i].count++;
+                sectorCounts[i].codes.push(dataPoint[2]);
                 break;
             }
         }
@@ -191,11 +210,11 @@ function countPostalCodesInSectors(canvas, dataPoints, sectors, referencePoints)
 }
 
 function drawDensityMap(canvas, ctx, sectors, sectorCounts) {
-    const maxCount = sectorCounts.reduce((partialSum, a) => partialSum + a, 0); // Or use Math.max(...sectorCounts)
+    const maxCount = Math.max(...sectorCounts.map(sectorCount => sectorCount.count));
     for (let i = 0; i < sectors.length; i++) {
         const sector = sectors[i];
-        const count = sectorCounts[i];
-        const color = `rgba(0, 255, 0, ${4*count / maxCount})`;
+        const count = sectorCounts[i].count;
+        const color = `rgba(0, 255, 0, ${count / maxCount})`;
         ctx.fillStyle = color;
         ctx.fillRect(sector.x, sector.y, sector.width, sector.height);
     }

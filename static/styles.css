@@ -2,7 +2,7 @@ table {
   font-family: Arial, Helvetica, sans-serif;
   border-collapse: collapse;
   width: 100%;
-  display: none;
+  display: block;
 }
 
 th tr {
@@ -22,11 +22,11 @@ th {
   padding: 12px 6px;
   background-color: rgba(3, 127, 228, 0.859);
   color: white;
-  text-align: left;
+  text-align: center;
 }
 
 td {
-  text-align: left;
+  text-align: center;
 }
 
 canvas {
